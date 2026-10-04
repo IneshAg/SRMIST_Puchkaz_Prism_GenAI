@@ -49,7 +49,7 @@ complaint (+ optional SIIS reference text)
 | `src/llm_client.py` | Gemini / OpenAI / offline mock, timeout + cost tracking |
 | `src/embeddings.py` | Char n-gram TF-IDF embedder (no network needed) |
 | `src/schema.py` | Official response schema |
-| `tests/` | 219 pytest tests |
+| `tests/` | 225 pytest tests |
 
 ## Quick start
 
@@ -74,6 +74,20 @@ In hybrid mode Stage 0 and the semantic cache still run locally. Only cache miss
 
 To use your own key instead: `cp .env.example .env` and fill in the two lines.
 
+### Pre-warming the cache in bulk
+
+```bash
+python scripts/warm_cache.py --dry-run   # list the ~880 generated test complaints
+python scripts/warm_cache.py             # run them all; new answers -> artifacts/warm_cache.jsonl
+```
+
+The script generates every combination of symptom × device × phrasing for which the kit has a reference article. It runs them through the real pipeline and saves each new Gemini answer. The API loads `artifacts/warm_cache.jsonl` at startup (next to `results.jsonl`), so the answers survive restarts and ship with the repo.
+
+- **Few LLM calls:** most cases are cache hits, so only ~20 need Gemini (rate-limited with `--rpm`, default 10/min).
+- **Resumable:** a re-run loads what's already saved and picks up where it stopped.
+- **No mock answers saved:** answers from the offline mock are never written to the file.
+- **Taxonomy check:** it reports any generated complaint that doesn't classify back to its own symptom.
+
 Docker (same three modes):
 
 ```bash
@@ -93,7 +107,7 @@ Deploy your own copy: `render.yaml` is a Render Blueprint (Dashboard → New →
 | `LLM_MODEL` | provider default (`gemini-3.5-flash-lite`) | Override the model |
 | `REMOTE_API_URL` | the Render URL above | Where hybrid mode forwards misses; empty = disable |
 | `REMOTE_TIMEOUT_SECONDS` | `60` | Timeout for a forwarded request |
-| `CACHE_WARM_FILE` | `results.jsonl` | File used to pre-warm the cache; empty = start cold |
+| `CACHE_WARM_FILE` | `results.jsonl` + `artifacts/warm_cache.jsonl` | Files used to pre-warm the cache (`;` on Windows, `:` elsewhere); empty = start cold |
 | `REQUEST_TIMEOUT_SECONDS` | `70` | Hard per-request timeout (returns 504) |
 
 If anything fails (missing key or SDK, Render down), the API logs a warning and falls back to the offline mock instead of crashing.
@@ -165,7 +179,7 @@ Full report in `metrics.md`, which follows the brief's Appendix C template.
 | Catalog URI validity | 100% | 100% |
 | Paraphrase cache hit rate | ≥ 80% | 100% (19/19)* |
 | Cache-hit P95 | ≤ 300 ms | ~3 ms |
-| Cold-path P95 (Gemini) | ≤ 8 s | 2.4 s |
+| Cold-path P95 (Gemini) | ≤ 8 s | 2.5 s |
 
 \* 17/19 before the symptom vocabulary was extended with real-world phrasings; the two misses ("blue screen", "screen just dark") are now covered. See `docs/DEV_NOTES.md`.
 

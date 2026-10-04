@@ -23,6 +23,9 @@ COPY data/ ./data/
 COPY scripts/ ./scripts/
 # Validated responses used to pre-warm the semantic cache at startup
 COPY results.jsonl ./results.jsonl
+# Extra cached answers collected by scripts/warm_cache.py (the vectorizer .pkl is
+# excluded via .dockerignore and rebuilt below)
+COPY artifacts/ ./artifacts/
 
 # Build TF-IDF vectorizer at image build time
 RUN python scripts/build_corpus_vectorizer.py

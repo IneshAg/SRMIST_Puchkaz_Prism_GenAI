@@ -12,11 +12,15 @@ zero-URL-leak rule from the theme brief:
   * goal: matches regex r"^Follow these steps to perform this .+ (Troubleshooting|Configuration)$"
   * title: 2-3 words
   * description: starts with "It will" and has 5-7 words
-  If a text field is empty or breaks its rules after scrubbing, it is not emitted:
-  replaces affected step groups with a neutral valid one, or if nothing valid remains
-  returns contexts [] so the pipeline adds fallback "no_match". Never invents new content or URLs.
-- If a deeplink field is cleared and actionCategory is "auto", sets the deeplink
-  to bixby://dummy_positive and downgrades the action to "manual" so it passes schema validation.
+  Works sentence by sentence: a sentence that was only a link instruction
+  ("Visit samsung.com for details") is dropped whole instead of leaving
+  fragments like "Visit for details"; markdown links keep only their label.
+  A step that scrubs to nothing is dropped; a step group / action with no
+  real steps left is dropped; if nothing remains, contexts [] so the pipeline
+  adds fallback "no_match". Never invents steps.
+- A web URL in an auto action's deeplink is replaced by the catalog's
+  generic placeholder (voiceassist://dummy_positive); manual/critical
+  actions never carry an actionable deeplink.
 - Idempotent and non-mutating.
 """
 from __future__ import annotations
@@ -36,13 +40,13 @@ _EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
 # Matches any URI scheme (e.g. http://, https://, bixby://, intent://)
 # Preserves trailing sentence punctuation (. , ! ? ; :)
 _SCHEME_RE = re.compile(
-    r"\b[a-zA-Z][a-zA-Z0-9+.-]*://[^\s<>\"]+?(?=[.,!?;:]*(?:\s|$))",
+    r"\b[a-zA-Z][a-zA-Z0-9+.-]*://[^\s<>\"]+?(?=[.,!?;:)\]]*(?:\s|$))",
     re.IGNORECASE,
 )
 
 # Matches www. URLs
 _WWW_RE = re.compile(
-    r"\bwww\.[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:/[^\s<>\"]+?)?(?=[.,!?;:]*(?:\s|$))",
+    r"\bwww\.[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:/[^\s<>\"]+?)?(?=[.,!?;:)\]]*(?:\s|$))",
     re.IGNORECASE,
 )
 
@@ -50,9 +54,19 @@ _WWW_RE = re.compile(
 _DOMAIN_RE = re.compile(
     r"\b(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+"
     + _TLDS
-    + r"(?::\d+)?(?:/[^\s<>\"]+?)?(?=[.,!?;:]*(?:\s|$))\b",
+    + r"(?::\d+)?(?:/[^\s<>\"]+?)?(?=[.,!?;:)\]]*(?:\s|$))\b",
     re.IGNORECASE,
 )
+
+_MD_LINK_RE = re.compile(r"!?\[([^\]]*)\]\(([^)]*)\)")
+_LINK_FILLER = {
+    "visit", "see", "go", "to", "at", "or", "and", "the", "our", "website", "site", "link",
+    "here", "for", "more", "info", "information", "details", "please", "check", "out",
+    "open", "click", "this", "page", "on", "a", "an", "you", "can", "also", "guide", "url",
+    "email", "contact", "us", "help", "support", "call", "write", "online", "web",
+    "if", "needed", "need", "in", "browser", "via", "with", "from", "by", "your", "any",
+    "questions", "is", "are", "available", "official", "visiting",
+}
 
 _DISALLOWED_DEEPLINK_PREFIXES = (
     "http://",
@@ -83,15 +97,16 @@ def _is_valid_description(desc: str) -> bool:
     return desc.startswith("It will") and (5 <= _word_count(desc) <= 7)
 
 
-def _neutral_step_group() -> dict:
-    return {
-        "steps": ["Check device settings."],
-        "actionableDeeplink": {
-            "deeplink": "bixby://dummy_positive",
-            "description": "Automated troubleshooting execution",
-        },
-        "validationDeeplink": None,
-    }
+def _placeholder_deeplink() -> str:
+    """The catalog's own generic placeholder (voiceassist://dummy_positive after
+    the rebrand). Hard-coding the old bixby:// value produced a URI that is not
+    in deeplinks.json."""
+    try:
+        import deeplink_mapping
+        deeplink_mapping._load_catalog()
+        return deeplink_mapping._placeholder
+    except Exception:
+        return "voiceassist://dummy_positive"
 
 
 def _scrub_text(text: str) -> tuple[str, bool]:
@@ -103,14 +118,32 @@ def _scrub_text(text: str) -> tuple[str, bool]:
         return text, False
 
     orig = text
-    # Remove emails
-    text = _EMAIL_RE.sub("", text)
-    # Remove scheme URIs (http://, https://, bixby:// in text fields, etc.)
-    text = _SCHEME_RE.sub("", text)
-    # Remove www. URLs
-    text = _WWW_RE.sub("", text)
-    # Remove bare domains
-    text = _DOMAIN_RE.sub("", text)
+    # Markdown links/images: keep the visible label, drop the target.
+    text = _MD_LINK_RE.sub(lambda m: "\x00" + m.group(1) + "\x00", text)
+    # Work sentence by sentence: "Visit https://x or www.y." minus its links is
+    # "Visit or." -- noise, not a step. Drop a sentence whose remainder has no
+    # real content left; otherwise keep the remainder.
+    kept = []
+    for sentence in re.split(r"(?<=[.!?])\s+", text):
+        cleaned_s = _EMAIL_RE.sub("", sentence)
+        cleaned_s = _SCHEME_RE.sub("", cleaned_s)
+        cleaned_s = _WWW_RE.sub("", cleaned_s)
+        cleaned_s = _DOMAIN_RE.sub("", cleaned_s)
+        cleaned_s = cleaned_s.replace("\x00", "")
+        if cleaned_s != sentence:
+            cleaned_s = re.sub(r"\(\s*\)|\[\s*\]|<\s*>", "", cleaned_s)
+            content = [w for w in re.findall(r"[A-Za-z0-9']+", cleaned_s.lower()) if w not in _LINK_FILLER]
+            if len(content) < 2:
+                continue
+        kept.append(cleaned_s)
+    text = " ".join(kept)
+    text = re.sub(
+        r"\s*\(([^()]*)\)",
+        lambda m: "" if not [w for w in re.findall(r"[A-Za-z0-9']+", m.group(1).lower()) if w not in _LINK_FILLER] else m.group(0),
+        text,
+    )
+    # Any leftover link syntax fragments
+    text = re.sub(r"\]\(|\(\s*\)|\[\s*\]", "", text)
 
     # Clean up whitespace and punctuation spacing
     text = re.sub(r"[ \t]+", " ", text)
@@ -206,9 +239,7 @@ def _sanitize_contexts(contexts_list: list) -> list:
 
                 step_groups = act.get("stepGroups", [])
                 if not isinstance(step_groups, list) or not step_groups:
-                    act["stepGroups"] = [_neutral_step_group()]
-                    valid_actions.append(act)
-                    continue
+                    continue  # no steps -> drop the action; never invent placeholder steps
 
                 valid_groups = []
                 for grp in step_groups:
@@ -228,8 +259,8 @@ def _sanitize_contexts(contexts_list: list) -> list:
                                 s_clean, s_mod = _scrub_text(s)
                                 if s_clean:
                                     clean_steps.append(s_clean)
-                                else:
-                                    is_affected = True
+                                # a step that was only a link ("Visit x.com") is
+                                # dropped; the rest of the group is kept
                             else:
                                 is_affected = True
                         if not clean_steps:
@@ -255,7 +286,7 @@ def _sanitize_contexts(contexts_list: list) -> list:
                             dl_desc_clean, _ = _scrub_text(raw_dl_desc)
                             act_dl["description"] = dl_desc_clean
                             if not dl_desc_clean:
-                                is_affected = True
+                                act_dl["description"] = "Open the relevant Settings screen"
                         if "message" in act_dl and isinstance(act_dl["message"], str):
                             act_dl["message"], _ = _scrub_text(act_dl["message"])
 
@@ -267,34 +298,28 @@ def _sanitize_contexts(contexts_list: list) -> list:
                             val_dl["deeplink"] = vdl_clean
                             if was_vcleared or not vdl_clean:
                                 dl_cleared = True
-                                val_dl["deeplink"] = "bixby://dummy_positive"
+                                grp["validationDeeplink"] = None  # no placeholder exists for validation links
                         if not val_dl.get("key") or not isinstance(val_dl.get("key"), str):
                             grp["validationDeeplink"] = None
 
-                    # Rule 2: If a deeplink field is cleared and actionCategory is "auto",
-                    # set the deeplink to bixby://dummy_positive and downgrade the action to "manual"
                     cat = act.get("category") or act.get("actionCategory")
-                    if dl_cleared and cat == "auto":
-                        if isinstance(act_dl, dict):
-                            act_dl["deeplink"] = "bixby://dummy_positive"
-                            if not act_dl.get("description"):
-                                act_dl["description"] = "Automated troubleshooting execution"
-                        elif act_dl is None:
-                            grp["actionableDeeplink"] = {
-                                "deeplink": "bixby://dummy_positive",
-                                "description": "Automated troubleshooting execution",
-                            }
-                        act["category"] = "manual"
-                        if "actionCategory" in act:
-                            act["actionCategory"] = "manual"
+                    # A web URL in place of a catalog deeplink: an auto action keeps
+                    # its category and gets the catalog's generic placeholder (the
+                    # brief's "valid Settings screen not in the catalog").
+                    # manual/critical actions may not carry a deeplink at all.
+                    if cat == "auto":
+                        if dl_cleared and isinstance(act_dl, dict):
+                            act_dl["deeplink"] = _placeholder_deeplink()
+                    elif act_dl is not None:
+                        grp["actionableDeeplink"] = None
 
                     if is_affected:
-                        grp = _neutral_step_group()
+                        continue  # nothing real left in this group
 
                     valid_groups.append(grp)
 
                 if not valid_groups:
-                    valid_groups = [_neutral_step_group()]
+                    continue
 
                 act["stepGroups"] = valid_groups
                 valid_actions.append(act)
@@ -316,11 +341,7 @@ def _sanitize_contexts(contexts_list: list) -> list:
                     dl_cleared = True
 
             if dl_cleared and cat == "auto":
-                ctx["deeplink"] = "bixby://dummy_positive"
-                if "category" in ctx:
-                    ctx["category"] = "manual"
-                if "actionCategory" in ctx:
-                    ctx["actionCategory"] = "manual"
+                ctx["deeplink"] = _placeholder_deeplink()
 
             if "description" in ctx:
                 desc_clean, desc_mod = _scrub_text(ctx["description"])
@@ -341,14 +362,12 @@ def scrub_response(response: dict) -> dict:
 
     If a text field is empty or breaks its rules after scrubbing (title 2-3 words,
     description starts with "It will" and has 5-7 words, goal matches the goal regex
-    in src/schema.py or structure_extraction.py), do not emit it. Instead mark the
-    response as needing a safe fallback: replace the whole affected step group with
-    a neutral valid one, or if nothing valid remains return contexts [] so the
-    pipeline adds fallback "no_match". Never invent new content or URLs.
+    in src/schema.py or structure_extraction.py), do not emit it: empty steps,
+    groups and actions are dropped, and if nothing valid remains contexts is []
+    so the pipeline adds fallback "no_match". Never invent new content or URLs.
 
-    If a deeplink field is cleared and actionCategory is "auto", set the deeplink
-    to bixby://dummy_positive and downgrade the action to "manual" so it passes
-    schema validation.
+    A web URL in an auto action's deeplink becomes the catalog placeholder;
+    manual/critical actions never carry an actionable deeplink.
     """
     if not isinstance(response, dict):
         return response
@@ -371,7 +390,7 @@ def scrub_response(response: dict) -> dict:
             if was_cleared or not dl_clean:
                 dl_cleared = True
         if dl_cleared and cat == "auto":
-            res["deeplink"] = "bixby://dummy_positive"
+            res["deeplink"] = _placeholder_deeplink()
             if "category" in res:
                 res["category"] = "manual"
             if "actionCategory" in res:

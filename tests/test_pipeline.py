@@ -204,3 +204,17 @@ def test_two_unrelated_low_confidence_queries_never_cross_contaminate():
     assert r2["response"]["contexts"][0]["goal"] == "answer-2"  # NOT answer-1 — no cross-contamination
     assert r2["meta"]["cache_hit"] is False
     assert len(cache) == 0
+
+
+def test_mock_answers_are_never_cached(monkeypatch):
+    """Offline-mock output (e.g. hosted Render asleep in hybrid mode) is a
+    degraded echo of the article; caching it would serve it for every later
+    paraphrase and block the real answer. Production default: not cached."""
+    monkeypatch.delenv("CACHE_MOCK_ANSWERS", raising=False)
+    pipeline = _fresh_pipeline()
+    q = "My Galaxy S22 battery drains extremely fast, dead by noon even with light use."
+    first = pipeline.run(q, {"title": "t", "content": "c"})
+    assert first["response"]["contexts"]
+    assert len(pipeline.cache) == 0
+    second = pipeline.run(q, {"title": "t", "content": "c"})
+    assert second["meta"]["cache_hit"] is False

@@ -27,6 +27,7 @@ def _isolate_from_real_llm_config(monkeypatch):
     Found by exactly that happening: a full run that normally takes ~4s
     hung well past two minutes once a real .env existed on this machine.
     """
+    monkeypatch.setenv("CACHE_MOCK_ANSWERS", "1")  # cache-mechanics tests run on the mock; prod never caches it
     monkeypatch.delenv("LLM_PROVIDER", raising=False)
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)

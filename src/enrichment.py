@@ -175,7 +175,10 @@ SYMPTOM_TAXONOMY: List[Symptom] = [
     Symptom(
         "inner_screen_failure",
         "Inner/foldable screen failed, outer screen fine",
-        ["inner screen", "cover screen", "fold"],
+        # not bare "fold": the device name "Nexa Fold X1" contains it, which made
+        # every dead/black screen on that phone look like an inner-screen failure
+        ["inner screen", "cover screen", "inner display", "main display", "folding screen",
+         "foldable screen", "when i unfold", "when unfolded"],
         ["stopped working", "no image", "dead", "doesn't respond", "doesnt respond",
          "not responding", "stopped", "died"],
         "inner foldable display",
@@ -202,7 +205,10 @@ SYMPTOM_TAXONOMY: List[Symptom] = [
     Symptom(
         "touch_lag",
         "Touch input delayed / laggy",
-        ["touch", "tap", "input"],
+        # multi-word "screen lag" phrases rather than bare "screen", so a complaint
+        # like "screen went black and lagging" still goes to the black-screen category
+        ["touch", "tap", "input", "screen lag", "screen is lag", "screen keeps lag",
+         "display lag", "display is lag", "screen is slow to respond"],
         ["delayed", "laggy", "lag", "noticeable delay", "slow to respond", "delay", "lagging",
          "sluggish", "takes a second to respond", "slow response"],
         "touch input",
@@ -870,7 +876,7 @@ def normalize_query(raw_complaint: str, llm_client: Optional[LLMClient] = None) 
                     classification_source = "llm_fallback"
 
     device_confidence = 0.0 if device == UNKNOWN_DEVICE_LABEL else 1.0
-    canonical = f"{device} {symptom.subject} {symptom.formal}."
+    canonical = f"{_device_subject(device, symptom.subject)} {symptom.formal}."
     return EnrichmentResult(
         raw_query=raw_complaint,
         canonical_query=canonical,
@@ -906,25 +912,70 @@ def _inject_typos(text: str, seed: int) -> str:
     return "".join(chars)
 
 
+_PARAPHRASE_STOP = {
+    "my", "the", "a", "an", "is", "are", "and", "or", "it", "its", "i", "me", "to", "of",
+    "on", "in", "when", "so", "but", "with", "that", "this", "has", "have", "been", "very",
+    "really", "just", "be", "was", "for", "at", "can", "cant", "can't", "dont", "don't",
+}
+
+
+def _raw_paraphrases(raw_query: str) -> Optional[List[str]]:
+    """Paraphrases built from the customer's OWN words, for complaints the
+    taxonomy can't classify. The template path would otherwise reword a
+    generic "could not be automatically classified" sentence -- 8 near-identical
+    variations that say nothing about the actual complaint. None when there
+    isn't enough (Latin-script) text to work with."""
+    raw = _clean_raw(raw_query).strip().rstrip(".!?").strip()
+    words = re.findall(r"[A-Za-z0-9']+", raw)
+    if len(words) < 2:
+        return None
+    lc = raw[0].lower() + raw[1:]
+    raw = raw[0].upper() + raw[1:]
+    kw = " ".join(w.lower() for w in words if w.lower() not in _PARAPHRASE_STOP) or lc
+    return [
+        f"{raw}. How can I fix this?",
+        f"I would like help with the following issue: {lc}.",
+        f"Could you advise on troubleshooting steps? {raw}.",
+        f"hey, {lc}, any idea what to do?",
+        f"{lc} - what should I try?",
+        kw,
+        f"{kw} fix",
+        f"This is so frustrating, {lc} and nothing helps!",
+        _inject_typos(raw, seed=1),
+        _inject_typos(raw, seed=2),
+    ]
+
+
+def _device_subject(device: str, subject: str) -> str:
+    """"TechCorp device" + "device" -> "TechCorp device", not "TechCorp device device"."""
+    return device if device.lower().endswith(subject.lower()) else f"{device} {subject}"
+
+
 def _template_variations(result: EnrichmentResult) -> List[str]:
     device, symptom = result.device, next(
         (s for s in SYMPTOM_TAXONOMY if s.category == result.symptom_category), _DEFAULT_SYMPTOM
     )
+    if symptom is _DEFAULT_SYMPTOM:
+        own_words = _raw_paraphrases(result.raw_query)
+        if own_words:
+            return own_words
+    ds = _device_subject(device, symptom.subject)
     variations: List[str] = [
-        f"I am experiencing an issue where the {device} {symptom.subject} {symptom.formal}. "
+        f"I am experiencing an issue where the {ds} {symptom.formal}. "
         f"Could you please advise on the appropriate troubleshooting steps?",
         f"The {symptom.subject} on my {device} {symptom.formal}; I would appreciate guidance on how to resolve this.",
-        f"hey so my {device} {symptom.subject} {symptom.casual}, kinda annoying, help?",
+        f"hey so my {ds} {symptom.casual}, kinda annoying, help?",
         f"my {device}'s {symptom.subject} {symptom.casual} idk whats going on",
         f"{device} {symptom.keyword}",
         f"{device} {symptom.keyword} fix",
-        f"This is so frustrating!! My {device} {symptom.subject} {symptom.casual} and nothing I do works!",
-        f"I'm really annoyed, my {device} {symptom.subject} {symptom.formal} and I've tried everything already!",
+        f"This is so frustrating!! My {ds} {symptom.casual} and nothing I do works!",
+        f"I'm really annoyed, my {ds} {symptom.formal} and I've tried everything already!",
     ]
     # two typo-register variants, seeded off the canonical text for determinism
-    variations.append(_inject_typos(f"{device} {symptom.subject} {symptom.casual}", seed=1))
-    variations.append(_inject_typos(f"{device} {symptom.subject} {symptom.formal}", seed=2))
-    return variations
+    variations.append(_inject_typos(f"{ds} {symptom.casual}", seed=1))
+    variations.append(_inject_typos(f"{ds} {symptom.formal}", seed=2))
+    # unknown device ("TechCorp device") + generic subject ("device")
+    return [re.sub(r"\bdevice('s)? device\b", "device", v) for v in variations]
 
 
 def _llm_variations(result: EnrichmentResult, client: LLMClient, n: int) -> List[str]:

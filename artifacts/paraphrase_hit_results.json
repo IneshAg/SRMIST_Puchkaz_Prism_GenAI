@@ -3,8 +3,8 @@
   "scored": 19,
   "hits": 19,
   "hit_rate": 1.0,
-  "hit_latency_p50_ms": 2.21,
-  "hit_latency_p95_ms": 2.5,
+  "hit_latency_p50_ms": 2.13,
+  "hit_latency_p95_ms": 2.49,
   "detail": [
     {
       "query": "My Nexa X1 display goes white and blank whenever I open certain apps.",
@@ -14,7 +14,7 @@
       "device": "Nexa X1",
       "symptom": "screen_blank_black",
       "similarity": 1.0000000000000007,
-      "latency_ms": 2.48
+      "latency_ms": 2.66
     },
     {
       "query": "nexa x1 screen blank no text showing in apps",
@@ -24,7 +24,7 @@
       "device": "Nexa X1",
       "symptom": "screen_blank_black",
       "similarity": 1.0000000000000007,
-      "latency_ms": 2.1
+      "latency_ms": 2.49
     },
     {
       "query": "Nexa Fold X1 screen is totally black and I can't transfer my data off it",
@@ -34,7 +34,7 @@
       "device": "Nexa Fold X1",
       "symptom": "screen_blank_black",
       "similarity": 1.0000000000000004,
-      "latency_ms": 2.73
+      "latency_ms": 2.39
     },
     {
       "query": "fold x1 black screen cant use data transfer!!",
@@ -44,7 +44,7 @@
       "device": "Fold X1",
       "symptom": "screen_blank_black",
       "similarity": 0.9876232197059137,
-      "latency_ms": 2.0
+      "latency_ms": 2.02
     },
     {
       "query": "Nexa A15 screen went black by itself after a month, shows nothing",
@@ -54,7 +54,7 @@
       "device": "Nexa A15",
       "symptom": "screen_blank_black",
       "similarity": 0.9500510622401336,
-      "latency_ms": 2.38
+      "latency_ms": 1.96
     },
     {
       "query": "The inner display on my Nexa Fold X1 has stopped working, cover screen is fine.",
@@ -64,7 +64,7 @@
       "device": "Nexa Fold X1",
       "symptom": "inner_screen_failure",
       "similarity": 1.0000000000000004,
-      "latency_ms": 2.5
+      "latency_ms": 2.39
     },
     {
       "query": "nexa fold x1 inner screen dead, outer one works",
@@ -74,7 +74,7 @@
       "device": "Nexa Fold X1",
       "symptom": "inner_screen_failure",
       "similarity": 1.0000000000000004,
-      "latency_ms": 2.27
+      "latency_ms": 2.35
     },
     {
       "query": "My Nexa Fold X1 screen keeps flickering and then goes blank when I unfold it",
@@ -84,7 +84,7 @@
       "device": "Nexa Fold X1",
       "symptom": "screen_flicker_then_blank",
       "similarity": 1.0000000000000007,
-      "latency_ms": 2.41
+      "latency_ms": 2.06
     },
     {
       "query": "half of my nexa fold x1 screen is black, other half works",
@@ -94,7 +94,7 @@
       "device": "Nexa Fold X1",
       "symptom": "half_screen_dark",
       "similarity": 1.0000000000000007,
-      "latency_ms": 2.19
+      "latency_ms": 2.04
     },
     {
       "query": "How do I get rid of the floating circle shortcut on my Nexa X1 screen?",
@@ -110,7 +110,7 @@
       "device": "Nexa X1",
       "symptom": "screen_blank_black",
       "similarity": 1.0000000000000007,
-      "latency_ms": 2.42
+      "latency_ms": 2.04
     },
     {
       "query": "my phone screen is completly cracked and unusable",
@@ -120,7 +120,7 @@
       "device": "TechCorp device",
       "symptom": "screen_cracked",
       "similarity": 1.0000000000000009,
-      "latency_ms": 2.15
+      "latency_ms": 1.94
     },
     {
       "query": "Nexa X1 Ultra stuck on a blue screen with tiny text and won't boot",
@@ -130,7 +130,7 @@
       "device": "Nexa X1 Ultra",
       "symptom": "screen_blank_black",
       "similarity": 1.0000000000000004,
-      "latency_ms": 2.5
+      "latency_ms": 2.13
     },
     {
       "query": "TechCorp X1 Ultra display flickers really fast every time I plug in the charger",
@@ -140,7 +140,7 @@
       "device": "TechCorp X1 Ultra",
       "symptom": "screen_flicker_then_blank",
       "similarity": 1.0000000000000004,
-      "latency_ms": 2.35
+      "latency_ms": 2.15
     },
     {
       "query": "nexa x1 screen just dark, nothing visible, can't transfer data",
@@ -150,7 +150,7 @@
       "device": "Nexa X1",
       "symptom": "screen_blank_black",
       "similarity": 1.0000000000000007,
-      "latency_ms": 2.03
+      "latency_ms": 2.14
     },
     {
       "query": "Nexa Fold X1 screen cracked at the fold and touch not working in places",
@@ -160,7 +160,7 @@
       "device": "Nexa Fold X1",
       "symptom": "screen_cracked",
       "similarity": 1.0000000000000004,
-      "latency_ms": 2.05
+      "latency_ms": 1.85
     },
     {
       "query": "Nexa X1 touch input is laggy and delayed",
@@ -170,7 +170,7 @@
       "device": "Nexa X1",
       "symptom": "touch_lag",
       "similarity": 1.0000000000000004,
-      "latency_ms": 1.87
+      "latency_ms": 1.99
     },
     {
       "query": "ugh my nexa x1 touchscreen lags every time i tap something",
@@ -180,7 +180,7 @@
       "device": "Nexa X1",
       "symptom": "touch_lag",
       "similarity": 1.0000000000000004,
-      "latency_ms": 1.84
+      "latency_ms": 2.12
     },
     {
       "query": "Nexa X1 Ultra screen is black but the phone still rings and works",
@@ -190,7 +190,7 @@
       "device": "Nexa X1 Ultra",
       "symptom": "screen_blank_black",
       "similarity": 1.0000000000000004,
-      "latency_ms": 2.21
+      "latency_ms": 2.22
     },
     {
       "query": "x1 ultra black screen of death even though it powers on",
@@ -200,7 +200,7 @@
       "device": "TechCorp device",
       "symptom": "screen_blank_black",
       "similarity": 1.0000000000000013,
-      "latency_ms": 2.06
+      "latency_ms": 2.23
     }
   ]
 }

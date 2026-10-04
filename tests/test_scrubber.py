@@ -10,9 +10,10 @@ Verifies:
 - URL-only title: drops context, returns contexts [], passes schema validation.
 - Description dropping below 5 words: drops action/context, passes schema validation.
 - Goal becoming invalid: drops context, returns contexts [], passes schema validation.
-- Auto action with web-URL deeplink: downgrades to manual, sets bixby://dummy_positive,
-  passes schema validation.
-- Affected step group with empty steps: replaced with neutral valid step group.
+- Auto action with web-URL deeplink: stays auto, gets the catalog placeholder
+  (voiceassist://dummy_positive), passes schema validation.
+- A step group whose only step was a URL is dropped (no invented placeholder
+  steps); a manual action never carries an actionable deeplink.
 - Idempotency: scrub_response(scrub_response(x)) == scrub_response(x).
 - Immutability: input object is never mutated.
 """
@@ -71,19 +72,14 @@ def test_nested_structures():
     assert "samsung.com" not in action["description"]
 
     group = action["stepGroups"][0]
-    # Step 1 clean
-    assert group["steps"][0] == "Navigate to Settings."
-    # Step 2: www. stripped
-    assert "www.samsung.com" not in group["steps"][1]
-    # Step 3: email stripped
-    assert "support@samsung.com" not in group["steps"][2]
-    # Step 4: bare domain stripped
-    assert "samsung.com" not in group["steps"][3]
-
-    # Actionable deeplink message has http:// stripped
-    assert "http://badlink.com" not in group["actionableDeeplink"]["message"]
-    # Legitimate deeplink survives
-    assert group["actionableDeeplink"]["deeplink"] == "bixby://dummy_positive"
+    # Steps 2-4 were nothing but "go to this link / email us" instructions:
+    # dropped whole instead of leaving fragments like "Check help at for details."
+    assert group["steps"] == ["Navigate to Settings."]
+    joined = " ".join(group["steps"])
+    assert "samsung.com" not in joined and "@" not in joined
+    # manual action: no actionable deeplink (brief: manual cannot carry one)
+    assert group["actionableDeeplink"] is None
+    # Legitimate validation deeplink survives
     assert group["validationDeeplink"]["deeplink"] == "bixby://masked/val/266037d0c5"
 
 
@@ -107,7 +103,7 @@ def test_url_in_each_text_field():
     # 4. URL in message
     res_msg = scrub_response({"message": "Please see www.samsung.com for troubleshooting."})
     assert "www." not in res_msg["message"]
-    assert res_msg["message"] == "Please see for troubleshooting."
+    assert res_msg["message"] == ""  # was only a "see this site" pointer: nothing left
 
     # 5. URL in steps
     res_steps = scrub_response({
@@ -278,7 +274,7 @@ def test_goal_becomes_invalid():
 
 
 def test_auto_action_with_web_url_deeplink():
-    """Auto action with web-URL deeplink has deeplink set to bixby://dummy_positive and downgraded to manual; passes schema validation."""
+    """Auto action with a web-URL deeplink keeps category auto and gets the catalog placeholder; passes schema validation."""
     response = {
         "contexts": [
             {
@@ -311,17 +307,14 @@ def test_auto_action_with_web_url_deeplink():
     assert len(validated.contexts) == 1
     ctx = validated.contexts[0]
     act = ctx.actions[0]
-    # Downgraded to manual
-    assert act.category == "manual"
-    assert out["contexts"][0]["actions"][0]["category"] == "manual"
-    assert out["contexts"][0]["actions"][0]["actionCategory"] == "manual"
-    # Deeplink set to bixby://dummy_positive
-    assert act.stepGroups[0].actionableDeeplink.deeplink == "bixby://dummy_positive"
-    assert out["contexts"][0]["actions"][0]["stepGroups"][0]["actionableDeeplink"]["deeplink"] == "bixby://dummy_positive"
+    # Stays auto (it is a settings screen), placeholder from the catalog, not the web URL
+    assert act.category == "auto"
+    assert act.stepGroups[0].actionableDeeplink.deeplink == "voiceassist://dummy_positive"
 
 
-def test_affected_step_group_replaced_with_neutral_valid():
-    """A step group with URL-only step is replaced with a neutral valid step group; passes schema validation."""
+def test_url_only_step_group_is_dropped_not_replaced_with_invented_steps():
+    """A step group whose only step is a URL has nothing real left: it is dropped
+    (never replaced with a made-up "Check device settings." step)."""
     response = {
         "contexts": [
             {
@@ -349,10 +342,8 @@ def test_affected_step_group_replaced_with_neutral_valid():
     }
     out = scrub_response(response)
     validated = ContextDeeplinkResponse.model_validate(out)
-    assert len(validated.contexts) == 1
-    grp = validated.contexts[0].actions[0].stepGroups[0]
-    assert grp.steps == ["Check device settings."]
-    assert grp.actionableDeeplink.deeplink == "bixby://dummy_positive"
+    assert validated.contexts == [] or not validated.contexts[0].actions
+    assert "Check device settings." not in str(out)
 
 
 def test_idempotency():

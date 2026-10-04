@@ -47,11 +47,17 @@ pipeline = Pipeline(
 )
 
 # Pre-warm the semantic cache so siis-less requests have something to hit on a
-# fresh start. CACHE_WARM_FILE="" disables it (the test suite does this).
-_WARM_FILE = os.getenv("CACHE_WARM_FILE", str(Path(__file__).resolve().parent.parent / "results.jsonl"))
+# fresh start: results.jsonl plus whatever scripts/warm_cache.py has collected.
+# CACHE_WARM_FILE overrides the list (os.pathsep-separated); "" disables it
+# (the test suite does this).
+_ROOT = Path(__file__).resolve().parent.parent
+_WARM_FILE = os.getenv(
+    "CACHE_WARM_FILE",
+    os.pathsep.join([str(_ROOT / "results.jsonl"), str(_ROOT / "artifacts" / "warm_cache.jsonl")]),
+)
 if _WARM_FILE:
     try:
-        _warmed = pipeline.warm_from_results(_WARM_FILE)
+        _warmed = sum(pipeline.warm_from_results(f) for f in _WARM_FILE.split(os.pathsep) if f.strip())
         logger.info("Semantic cache pre-warmed with %d entries from %s", _warmed, _WARM_FILE)
         # Exercise the fast path once so the first real request doesn't pay
         # one-off lazy-init costs (measured: 3.1 s on the first hit on Render).

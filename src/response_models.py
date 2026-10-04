@@ -18,18 +18,15 @@ from schema import ContextDeeplinkResponse
 
 
 class TroubleshootContextResponse(ContextDeeplinkResponse):
-    """ContextDeeplinkResponse (contexts: List[Goal]) plus the two extra
-    top-level keys pipeline.run() adds to `response` before returning:
+    """ContextDeeplinkResponse (contexts: List[Goal]) plus the extra
+    top-level key pipeline.run() adds to `response` before returning:
     - fallback: only present when contexts is empty (§4.2.3 / §8 Phase 4).
-    - deeplinks_pending: only present while Stage 2 (Member C) isn't wired
-      in yet (pipeline._stage2_not_wired).
-    Both MUST stay declared here — if `response` were typed as the bare
+    It MUST stay declared here — if `response` were typed as the bare
     ContextDeeplinkResponse from schema.py instead, FastAPI's response_model
-    filtering would silently strip these two keys out of the real JSON on
+    filtering would silently strip this key out of the real JSON on
     the way out, including "fallback", which the brief calls non-negotiable.
     """
     fallback: Optional[Literal["no_match", "no_siis_context"]] = None
-    deeplinks_pending: Optional[bool] = None
 
 
 class Meta(BaseModel):

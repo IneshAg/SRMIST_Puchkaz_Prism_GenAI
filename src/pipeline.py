@@ -95,6 +95,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import os
 import time
 from typing import Callable, Optional
 
@@ -267,6 +268,7 @@ class Pipeline:
                 remote = None  # malformed remote answer: compute locally instead
         if remote is not None:
             response_dict = scrub_response(dict(remote["response"]))
+            response_dict.pop("deeplinks_pending", None)  # legacy field from older deployments
             rmeta = remote.get("meta") or {}
             cost_usd += float(rmeta.get("cost_usd") or 0.0)
             model_name = f"remote:{rmeta.get('model', 'unknown')}"
@@ -290,8 +292,6 @@ class Pipeline:
             response_dict = final.model_dump()
             response_dict = scrub_response(response_dict)
 
-            if self.stage2_fn is _stage2_not_wired:
-                response_dict["deeplinks_pending"] = True
 
         # §4.2.3 (non-negotiable): an empty result must carry fallback
         # metadata, not just a bare empty list — "no_siis_context" when
@@ -310,7 +310,19 @@ class Pipeline:
         # a siis_response ("no_siis_context") would otherwise poison the entry
         # and every later request for it -- even one that does carry the
         # reference text -- would be served the empty answer from cache.
-        if eligible and response_dict.get("contexts"):
+        #
+        # Answers produced by the offline MockLLMClient are never cached either:
+        # the mock only echoes the first lines of the reference article (one
+        # generic "auto" action, no real plan), so caching it -- e.g. when the
+        # hosted Render service is asleep in hybrid mode -- would serve that
+        # degraded answer for every later paraphrase and block the real one.
+        from llm_client import MockLLMClient
+        produced_by_mock = (
+            remote is None
+            and isinstance(client, MockLLMClient)
+            and os.getenv("CACHE_MOCK_ANSWERS", "") != "1"  # test-suite opt-in only
+        )
+        if eligible and response_dict.get("contexts") and not produced_by_mock:
             self.cache.put(
                 enrichment.canonical_query, cache_texts, copy.deepcopy(response_dict),
                 device=cache_device(enrichment), context_key=context_key,
@@ -351,7 +363,7 @@ class Pipeline:
             return 0
         mock = MockLLMClient()
         siis_by_query = {}
-        siis_path = Path(siis_file) if siis_file else path.parent / "data" / "siis_responses.json"
+        siis_path = Path(siis_file) if siis_file else Path(__file__).resolve().parent.parent / "data" / "siis_responses.json"
         if siis_path.is_file():
             try:
                 for rec in json.loads(siis_path.read_text(encoding="utf-8")).get("responses", []):
@@ -379,7 +391,9 @@ class Pipeline:
                 ]
                 self.cache.put(
                     enrichment.canonical_query, texts, response, device=cache_device(enrichment),
-                    context_key=siis_fingerprint(siis_by_query.get(_norm_q(query))),
+                    # rows written by scripts/warm_cache.py carry their own fingerprint
+                    context_key=row.get("siis_fingerprint")
+                    or siis_fingerprint(siis_by_query.get(_norm_q(query))),
                 )
                 written += 1
             except Exception:  # a bad line must never stop the server from starting
