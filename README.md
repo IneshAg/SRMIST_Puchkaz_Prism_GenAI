@@ -5,6 +5,10 @@
 Turns a vague device complaint ("screen went black and I can't move my data") into a validated, step-by-step troubleshooting plan with one-tap Settings deeplinks.
 Repeat or paraphrased queries come back from a semantic cache in a few milliseconds.
 
+## Demo Video
+
+**Watch the full demonstration here:** [Google Drive Demo Video](https://drive.google.com/file/d/1_ooCOpjRS2G8lOtwKyPkBSGQNYcRL5gH/view?usp=sharing)
+
 ## Live demo (no setup needed)
 
 **https://srmist-puchkaz-theme2.onrender.com** - hosted with Gemini enabled. The key is stored as a server-side secret on Render, not in this repo.
@@ -45,11 +49,12 @@ complaint (+ optional SIIS reference text)
 | `src/deeplink_mapping.py` | Stage 2: TF-IDF catalog matching, category guard, ordering |
 | `src/cache.py` | Stage 3: semantic cache (device- and source-gated) |
 | `src/scrubber.py` | Removes any URL / markdown link from the output |
+| `src/rule_extraction.py` | Offline Stage 1: builds the plan from the article's headings and instruction sentences when no LLM is reachable |
 | `src/remote_client.py` | Hybrid mode: forwards cache misses to the hosted service when there is no local key |
 | `src/llm_client.py` | Gemini / OpenAI / offline mock, timeout + cost tracking |
 | `src/embeddings.py` | Char n-gram TF-IDF embedder (no network needed) |
 | `src/schema.py` | Official response schema |
-| `tests/` | 225 pytest tests |
+| `tests/` | 244 pytest tests |
 
 ## Quick start
 
@@ -64,13 +69,17 @@ cd src && uvicorn api:app --port 8000      # then open http://localhost:8000/doc
 
 No API key is needed to run it locally. The engine picks the best LLM it can reach:
 
-| Mode | When | Who runs Gemini |
+| Mode | When | Who builds the plan |
 | --- | --- | --- |
-| **Local key** | `.env` has `LLM_PROVIDER=gemini` + `GOOGLE_API_KEY` | Your machine |
-| **Hybrid (default)** | No key set | The hosted Render service: new complaints are forwarded to it, answers are cached locally |
-| **Offline** | `LLM_PROVIDER=mock`, or Render unreachable | Nobody: deterministic offline mock |
+| **Local key** | `.env` has `LLM_PROVIDER=gemini` + `GOOGLE_API_KEY` | Gemini, from your machine |
+| **Hybrid (default)** | No key set | Gemini on the hosted Render service: new complaints are forwarded to it, answers are cached locally |
+| **Offline** | `LLM_PROVIDER=mock`, or Render unreachable | `rule_extraction.py`: no LLM, plan built from the article's own headings and instructions |
 
 In hybrid mode Stage 0 and the semantic cache still run locally. Only cache misses go to Render's public `/v1/troubleshoot`, so the key never leaves the server. Forwarded answers show `"model": "remote:gemini-…"` in `meta`. If Render is asleep, the first forwarded request can take ~1 minute.
+
+**Offline quality.** Without any LLM, Stage 1 reads the reference article's structure: each heading ("Step 2: Force a Restart") becomes an action, and the instruction sentences under it become its steps. Chains like "go to Settings, tap Display, and then tap…" are split one interaction per step, and informational sections are skipped. Every step is copied from the article, so nothing is invented, and the result goes through the same validation, category guard and deeplink mapping as Gemini's output. On the 20 kit complaints it answers the same 14 that Gemini does, with no URL leaks and no deeplinks outside the catalog. The wording is plainer than Gemini's: descriptions are formulaic ("It will help with safe mode") and plans keep more of the article's raw sentences.
+
+**For judges:** the quickest and best-quality path is the live URL above, with no setup. Running locally without a key depends on the Render service being up. If it's asleep the first request waits ~1 minute; if it's unreachable, the engine falls back to offline mode rather than failing.
 
 To use your own key instead: `cp .env.example .env` and fill in the two lines.
 
