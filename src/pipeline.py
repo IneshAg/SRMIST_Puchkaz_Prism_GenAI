@@ -48,7 +48,7 @@ when there was no siis_response to work from at all. Both are added to
 `response` (alongside "contexts") whenever Stage 1/2 come back empty,
 distinguishing "nothing to look at" from "looked, found nothing".
 "meta.cost_usd" reports the real per-request USD cost by reading each
-provider's token-usage fields (Gemini: usage_metadata; OpenAI/Anthropic:
+provider's token-usage fields (Gemini: usage_metadata; OpenAI/:
 usage) and applying published per-token rates. On the free tier, this is
 mathematically correct but not billed — the figure represents the true
 paid-tier equivalent cost and activates automatically when a paid key is
@@ -106,6 +106,7 @@ from schema import ContextDeeplinkResponse
 from scrubber import scrub_response
 from structure_extraction import structure_extraction
 from deeplink_mapping import deeplink_mapping
+import remote_client
 
 # -- Member B / Member C extension points --------------------------------
 # Signature each stage must implement. `enrichment` is passed through so
@@ -196,7 +197,7 @@ class Pipeline:
         # env var, no code changes) keeps working unchanged.
         self.llm_client = llm_client
 
-    def run(self, query: str, siis_response: dict) -> dict:
+    def run(self, query: str, siis_response: dict, allow_remote: bool = True) -> dict:
         t0 = time.perf_counter()
 
         # Resolved once (not inside enrich()) so meta.model can report the
@@ -252,28 +253,45 @@ class Pipeline:
                 "enrichment": enrichment_info,
             }
 
-        # Stage 1 + Stage 2 (Member B / Member C).
-        # Pass llm_client to Stage 1 if it accepts it (so its tokens flow into
-        # consume_cost() alongside Stage 0's). Falls back gracefully for test
-        # stubs that don't declare the kwarg.
-        import inspect as _inspect
-        _s1_params = _inspect.signature(self.stage1_fn).parameters
-        _s1_kwargs = {"llm_client": client} if "llm_client" in _s1_params or any(
-            p.kind == _inspect.Parameter.VAR_KEYWORD for p in _s1_params.values()
-        ) else {}
-        structured = self.stage1_fn(siis_response, enrichment, **_s1_kwargs)
+        # Hybrid mode (remote_client.py): no local key -> forward the miss to
+        # the hosted deployment that holds the Gemini key. Falls through to
+        # the local stages if the remote is disabled or unreachable.
+        model_name = client.model_name
+        remote = None
+        if allow_remote and remote_client.should_forward(client):
+            remote = remote_client.call_remote(query, siis_response)
+            try:
+                if remote is not None:
+                    ContextDeeplinkResponse.model_validate({"contexts": remote["response"].get("contexts", [])})
+            except Exception:
+                remote = None  # malformed remote answer: compute locally instead
+        if remote is not None:
+            response_dict = scrub_response(dict(remote["response"]))
+            rmeta = remote.get("meta") or {}
+            cost_usd += float(rmeta.get("cost_usd") or 0.0)
+            model_name = f"remote:{rmeta.get('model', 'unknown')}"
+        else:
+            # Stage 1 + Stage 2 (Member B / Member C).
+            # Pass llm_client to Stage 1 if it accepts it (so its tokens flow into
+            # consume_cost() alongside Stage 0's). Falls back gracefully for test
+            # stubs that don't declare the kwarg.
+            import inspect as _inspect
+            _s1_params = _inspect.signature(self.stage1_fn).parameters
+            _s1_kwargs = {"llm_client": client} if "llm_client" in _s1_params or any(
+                p.kind == _inspect.Parameter.VAR_KEYWORD for p in _s1_params.values()
+            ) else {}
+            structured = self.stage1_fn(siis_response, enrichment, **_s1_kwargs)
 
 
-        final = self.stage2_fn(structured, enrichment)
-        # Drain any tokens Stage 1/2 spent (Member B/C call client.complete() here).
-        # On free tier: 0.0. On paid: adds their costs to Stage 0's cost above.
-        cost_usd += client.consume_cost()
-        response_dict = final.model_dump()
-        response_dict = scrub_response(response_dict)
+            final = self.stage2_fn(structured, enrichment)
+            # Drain any tokens Stage 1/2 spent (Member B/C call client.complete() here).
+            # On free tier: 0.0. On paid: adds their costs to Stage 0's cost above.
+            cost_usd += client.consume_cost()
+            response_dict = final.model_dump()
+            response_dict = scrub_response(response_dict)
 
-        if self.stage2_fn is _stage2_not_wired:
-            response_dict["deeplinks_pending"] = True
-
+            if self.stage2_fn is _stage2_not_wired:
+                response_dict["deeplinks_pending"] = True
 
         # §4.2.3 (non-negotiable): an empty result must carry fallback
         # metadata, not just a bare empty list — "no_siis_context" when
@@ -306,7 +324,7 @@ class Pipeline:
                 "cache_hit": False,
                 "similarity": None,
                 "latency_ms": (time.perf_counter() - t0) * 1000,
-                "model": client.model_name,
+                "model": model_name,
                 "cost_usd": cost_usd,  # Stage 0 + Stage 1 + Stage 2 total
             },
             "enrichment": enrichment_info,

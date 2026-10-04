@@ -64,9 +64,9 @@ def _normalize_device(device: Optional[str]) -> str:
     matches: "Galaxy Z Flip 7" / "Z Flip 7" / "Galaxy Flip7" -> "flip7",
     "Samsung Galaxy S24 Ultra" -> "s24ultra". Different models stay distinct."""
     d = (device or UNKNOWN_DEVICE).strip().lower()
-    if d in ("", UNKNOWN_DEVICE, "samsung device"):
+    if d in ("", UNKNOWN_DEVICE, "samsung device", "techcorp device"):
         return UNKNOWN_DEVICE
-    d = re.sub(r"\b(samsung|galaxy)\b", " ", d)
+    d = re.sub(r"\b(samsung|galaxy|techcorp|nexa)\b", " ", d)
     d = re.sub(r"\bz\s*(?=(flip|fold))", " ", d)
     d = re.sub(r"[\s\-_]+", "", d)
     return d or UNKNOWN_DEVICE

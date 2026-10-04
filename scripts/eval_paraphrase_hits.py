@@ -30,28 +30,30 @@ from embeddings import TfidfEmbedder  # noqa: E402
 from pipeline import Pipeline  # noqa: E402
 from schema import ContextDeeplinkResponse  # noqa: E402
 
-# (paraphrase, 0-based row in data/input.txt it paraphrases)
+# (paraphrase, 0-based row in data/input.txt it paraphrases). Written against
+# the rebranded kit data (TechCorp / Nexa), mixing formal, casual, keyword,
+# frustrated and typo registers, and with/without the model name.
 PARAPHRASES = [
-    ("galaxy s22 screen goes white/blank when i open apps", 1),
-    ("My S22's display is completely black, nothing shows", 1),
-    ("Z Flip 7 screen went black, can't transfer my data", 2),
-    ("galaxy z flip7 display dead black cant use smart switch", 2),
-    ("Samsung Galaxy A16 screen went black by itself, won't display anything", 3),
-    ("My Galaxy Flip 7 inner screen stopped working", 7),
-    ("the folding screen on my flip 7 is dead", 7),
-    ("Galaxy Z Flip 6 screen flickers then goes blank when I open it", 8),
-    ("my flip 6 half the display is black, other half works", 9),
-    ("Galaxy S22 no activation message, screen stays blank after carrier switch", 11),
-    ("my phone's screen is cracked and bleeding", 12),
-    ("galaxy s26 ultra shows a blue or black screen and won't boot", 13),
-    ("S Ultra screen flashes super fast when charging", 14),
-    ("My Galaxy S24 screen stays dark and blank", 15),
-    ("Galaxy Z Flip 7 screen cracked at the fold", 16),
-    ("Galaxy S22 touch is laggy and delayed", 18),
-    ("touchscreen lag on galaxy s22 when typing", 18),
-    ("galaxy s24 ultra black screen of death but it still rings", 19),
-    ("My Galaxy S24 Ultra display is black though the phone is on", 19),
-    ("phone screen black wont turn on", 1),
+    ("My Nexa X1 display goes white and blank whenever I open certain apps.", 1),
+    ("nexa x1 screen blank no text showing in apps", 1),
+    ("Nexa Fold X1 screen is totally black and I can't transfer my data off it", 2),
+    ("fold x1 black screen cant use data transfer!!", 2),
+    ("Nexa A15 screen went black by itself after a month, shows nothing", 3),
+    ("The inner display on my Nexa Fold X1 has stopped working, cover screen is fine.", 7),
+    ("nexa fold x1 inner screen dead, outer one works", 7),
+    ("My Nexa Fold X1 screen keeps flickering and then goes blank when I unfold it", 8),
+    ("half of my nexa fold x1 screen is black, other half works", 9),
+    ("How do I get rid of the floating circle shortcut on my Nexa X1 screen?", 10),
+    ("Nexa X1 screen stays blank after the carrier deactivated my old phone, no activation msg", 11),
+    ("my phone screen is completly cracked and unusable", 12),
+    ("Nexa X1 Ultra stuck on a blue screen with tiny text and won't boot", 13),
+    ("TechCorp X1 Ultra display flickers really fast every time I plug in the charger", 14),
+    ("nexa x1 screen just dark, nothing visible, can't transfer data", 15),
+    ("Nexa Fold X1 screen cracked at the fold and touch not working in places", 16),
+    ("Nexa X1 touch input is laggy and delayed", 18),
+    ("ugh my nexa x1 touchscreen lags every time i tap something", 18),
+    ("Nexa X1 Ultra screen is black but the phone still rings and works", 19),
+    ("x1 ultra black screen of death even though it powers on", 19),
 ]
 
 
@@ -72,7 +74,8 @@ def main() -> dict:
         r = pipe.run(q, {})
         ms = (time.perf_counter() - t0) * 1000
         if src not in answerable:
-            detail.append({"query": q, "source_row": src, "scored": False})
+            detail.append({"query": q, "source_row": src, "scored": False,
+                           "reason": "source row has no answer in results.jsonl (no_match)"})
             continue
         scored += 1
         hit = r["meta"]["cache_hit"]
@@ -80,6 +83,7 @@ def main() -> dict:
         if hit:
             lat.append(ms)
         detail.append({"query": q, "source_row": src, "scored": True, "hit": hit,
+                       "device": r["enrichment"]["device"], "symptom": r["enrichment"]["symptom_category"],
                        "similarity": r["meta"]["similarity"], "latency_ms": round(ms, 2)})
     lat.sort()
     out = {
@@ -95,7 +99,7 @@ def main() -> dict:
     print(json.dumps({k: v for k, v in out.items() if k != "detail"}, indent=2))
     for d in detail:
         if d.get("scored") and not d["hit"]:
-            print("MISS:", d["query"])
+            print("MISS:", d["query"], "|", d["device"], "|", d["symptom"])
     return out
 
 

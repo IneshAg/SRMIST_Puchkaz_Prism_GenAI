@@ -30,6 +30,7 @@ from enrichment import enrich
 from pipeline import Pipeline
 from deeplink_mapping import deeplink_mapping
 from structure_extraction import structure_extraction
+from remote_client import FORWARD_HEADER
 from response_models import (
     CacheStatsResponse,
     EnrichResponse,
@@ -52,6 +53,11 @@ if _WARM_FILE:
     try:
         _warmed = pipeline.warm_from_results(_WARM_FILE)
         logger.info("Semantic cache pre-warmed with %d entries from %s", _warmed, _WARM_FILE)
+        # Exercise the fast path once so the first real request doesn't pay
+        # one-off lazy-init costs (measured: 3.1 s on the first hit on Render).
+        from llm_client import MockLLMClient as _Mock
+        _e = enrich("phone screen is black and will not turn on", llm_client=_Mock())
+        pipeline.cache.get(_e.canonical_query, _e.query_variations)
     except Exception:
         logger.exception("Cache pre-warm failed; continuing with an empty cache")
 
@@ -97,7 +103,9 @@ DEFAULT_REQUEST_TIMEOUT_SECONDS: float = float(os.getenv("REQUEST_TIMEOUT_SECOND
 
 
 @app.post("/v1/troubleshoot", response_model=TroubleshootResponse)
-def troubleshoot(req: TroubleshootRequest) -> dict:
+def troubleshoot(req: TroubleshootRequest, request: Request) -> dict:
+    # A request already forwarded by a hybrid client is never forwarded again.
+    allow_remote = request.headers.get(FORWARD_HEADER) is None
     if isinstance(req.siis_response, str):
         siis_response = {"title": "", "content": req.siis_response}
     else:
@@ -113,7 +121,7 @@ def troubleshoot(req: TroubleshootRequest) -> dict:
     # the API. This mirrors the thread-safety fix in llm_client.py.
     executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
     try:
-        future = executor.submit(pipeline.run, req.query, siis_response)
+        future = executor.submit(pipeline.run, req.query, siis_response, allow_remote)
         return future.result(timeout=timeout)
     except (TimeoutError, concurrent.futures.TimeoutError):
         logger.error("Request timed out in /v1/troubleshoot after %ss", timeout)

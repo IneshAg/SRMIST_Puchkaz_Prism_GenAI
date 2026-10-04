@@ -1,0 +1,15 @@
+# Render Blueprint: Dashboard -> New -> Blueprint -> pick this repo.
+# The API key is NOT stored here: `sync: false` makes Render ask for it once in
+# the dashboard and keep it as an encrypted secret on the server.
+services:
+  - type: web
+    name: srmist-puchkaz-theme2
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: LLM_PROVIDER
+        value: gemini
+      - key: GOOGLE_API_KEY
+        sync: false

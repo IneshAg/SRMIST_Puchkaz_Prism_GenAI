@@ -10,5 +10,5 @@ python-dotenv   # loads .env for LLM_PROVIDER/API keys; harmless no-op if no .en
 # Optional, only needed if you set LLM_PROVIDER to one of these:
 google-generativeai     # LLM_PROVIDER=gemini (the team's configured provider; without it the app silently fell back to the mock LLM)
 # openai                # LLM_PROVIDER=openai
-# anthropic             # LLM_PROVIDER=anthropic
+#              # LLM_PROVIDER=
 

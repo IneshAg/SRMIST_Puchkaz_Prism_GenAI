@@ -30,16 +30,16 @@ Empty answers carry the brief's fallback metadata: 6 `no_match` (SIIS text prese
 | Execution Path | Target (P95) | P50 (ms) | P95 (ms) |
 | :--- | :--- | :--- | :--- |
 | Cache hit - exact query match | <= 300 ms | ~2 | ~3 |
-| Cache hit - unseen semantic paraphrase | <= 300 ms | 2.0 | 2.5 (N=20) |
-| Cold query - full pipeline extraction & mapping | <= 8000 ms | 1750 | 2597 (N=19, real Gemini calls) |
+| Cache hit - unseen semantic paraphrase | <= 300 ms | ~2 | 2.5 (N=19) |
+| Cold query - full pipeline extraction & mapping | <= 8000 ms | 1681 | 2389 (N=14, real Gemini calls) |
 
 ## 4. Operational Cost & Cache Efficacy
 
 | Metric Item | Target | Measured Value |
 | :--- | :--- | :--- |
-| Cold query average inference cost | Tracked | Reported per request in `meta.cost_usd` = (prompt tokens x rate_in + completion tokens x rate_out). NOTE: the `results.jsonl` in this commit was generated before the cost-accounting fix (see README), so it shows 0.0; regenerate to populate. |
+| Cold query average inference cost | Tracked | Reported per request in `meta.cost_usd` = (prompt tokens x rate_in + completion tokens x rate_out). NOTE: the `results.jsonl` in this commit was generated before the cost-accounting fix (see docs/DEV_NOTES.md), so it shows 0.0; regenerate to populate. |
 | Cache hit inference cost | $0.00 | $0.00 (no Stage 1/2 call; keyword-matched Stage 0 makes no LLM call) |
-| Semantic cache hit rate (on unseen paraphrases) | >= 80% | 100% (20/20) - cache pre-warmed from `results.jsonl`, 20 hand-written paraphrases of the answerable input complaints sent WITHOUT `siis_response` (`scripts/eval_paraphrase_hits.py`; small, team-written set - treat as indicative) |
+| Semantic cache hit rate (on unseen paraphrases) | >= 80% | 100% (19/19); 89.5% (17/19) before the symptom vocabulary was extended after seeing the two misses - cache pre-warmed from `results.jsonl`, 20 hand-written paraphrases of the answerable input complaints sent WITHOUT `siis_response` (`scripts/eval_paraphrase_hits.py`; small, team-written set - treat as indicative) |
 | Cost derivation method | - | (prompt tokens + completion tokens) x rate |
 
 ## 5. Architectural Ablation Analysis
@@ -234,7 +234,7 @@ round-trips into one in this pass); `keyword_match` queries pay for zero.
 
 ## 5. Determinism
 
-Every real `LLMClient` implementation (`Gemini`/`OpenAI`/`Anthropic`) now sets
+Every real `LLMClient` implementation (`Gemini`/`OpenAI`/``) now sets
 `temperature=0` and `_TimeoutGuardedClient` additionally memoizes successful
 responses per exact `(system_prompt, user_prompt)` pair, so an identical request
 within a process returns an identical answer by construction — addressing §6's
@@ -242,7 +242,7 @@ within a process returns an identical answer by construction — addressing §6'
 identical inputs" criterion. Not exercised in this benchmark run (`LLM_PROVIDER`
 unset throughout), so provider-side behavior at `temperature=0` is unverified
 against a live API from this environment (network egress here doesn't reach
-Gemini/OpenAI/Anthropic — see `README.md`'s "Why TF-IDF" section).
+Gemini/OpenAI — see `README.md`'s "Why TF-IDF" section).
 
 ## 6. Test coverage & reliability
 

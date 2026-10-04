@@ -55,7 +55,14 @@ MAX_VARIATIONS = 10
 # ---------------------------------------------------------------------------
 
 _DEVICE_PATTERN = re.compile(
-    r"(Galaxy\s+Z\s+Flip\s*\d+|Galaxy\s+Flip\s*\d+|Z\s+Flip\s*\d+"
+    # Rebranded kit data (TechCorp / Nexa). Listed first; the Galaxy/Samsung
+    # branches below are kept so older phrasings still resolve.
+    r"(Nexa\s+(?:Fold|Flip)\s*X?\d+|(?:Fold|Flip)\s*X\d+"
+    r"|Nexa\s+X\d+\s*(?:Ultra|Plus|\+|FE)?|TechCorp\s+X\d+\s*(?:Ultra|Plus|\+|FE)?"
+    r"|Nexa\s+A\d+(?:\s*/\s*A\d+)?"
+    r"|Nexa\s+Tab\s*[A-Za-z0-9]*"
+    r"|TechCorp\s+[A-Z0-9]{3,}G?\s+tablet"
+    r"|Galaxy\s+Z\s+Flip\s*\d+|Galaxy\s+Flip\s*\d+|Z\s+Flip\s*\d+"
     r"|Galaxy\s+Z\s+Fold\s*\d+|Galaxy\s+Fold\s*\d+"
     r"|Galaxy\s+S\d+\s*(?:Ultra|Plus|\+|FE)?"
     r"|Galaxy\s+A\d+(?:\s*/\s*A\d+)?"
@@ -122,6 +129,20 @@ SYMPTOM_TAXONOMY: List[Symptom] = [
     # first symptom seen on a tied score, so e.g. flicker-then-blank (2 hits: "screen"
     # + "flicker") outranks the generic blank/black category on a complaint that
     # mentions both, matching how these 20 samples actually read.
+    # Physical damage first: when a complaint mentions a crack alongside a
+    # symptom it causes ("cracked ... touch doesn't work in places"), the crack
+    # is the actionable root cause (repair), so it wins the tie.
+    Symptom(
+        "screen_cracked",
+        "Screen physically cracked/damaged",
+        ["screen", "display"],
+        ["crack", "cracked", "shattered", "shatter", "smashed", "spider web", "spiderweb",
+         "broken glass", "screen broke"],
+        "screen",
+        "has a physical crack across it",
+        "is cracked and busted up",
+        "cracked physical damage",
+    ),
     Symptom(
         "screen_flicker_then_blank",
         "Screen flickers then goes blank",
@@ -135,12 +156,17 @@ SYMPTOM_TAXONOMY: List[Symptom] = [
     Symptom(
         "screen_ghost_touch",
         "Screen registers touches on its own (ghost touches)",
-        ["screen", "touch", "display"],
+        ["screen", "touch", "display", "phone", "typing", "apps"],
         # "on its own"/"by itself" alone used to also fire on any spontaneous-failure
         # complaint (a screen that "goes black on its own" is not a ghost-touch report) --
         # kept touch-specific instead so it can only fire alongside real touch behavior.
         ["ghost touch", "random touches", "phantom touch", "touch input on its own",
-         "touching on its own", "taps on its own", "touches on its own"],
+         "touching on its own", "taps on its own", "touches on its own",
+         # (web-researched phrasing, see docs/DEV_NOTES.md "Vocabulary sources")
+         "typing by itself", "types by itself", "typing on its own", "types on its own",
+         "scrolls by itself", "scrolling by itself", "scrolls on its own", "opens apps by itself",
+         "opening apps by itself", "apps open on their own", "does things on its own",
+         "doing things on its own", "phantom tap", "ghost tap", "false touch"],
         "screen",
         "registers touch input on its own without anyone touching it",
         "keeps tapping stuff by itself, ghost touches everywhere",
@@ -162,7 +188,12 @@ SYMPTOM_TAXONOMY: List[Symptom] = [
         "Touchscreen unresponsive / can't interact",
         ["screen", "touch", "touchscreen", "display"],
         ["unresponsive", "doesn't respond", "doesnt respond", "does not respond", "won't respond",
-         "wont respond", "not responding", "can't interact", "cant interact", "unable to interact"],
+         "wont respond", "not responding", "can't interact", "cant interact", "unable to interact",
+         # (web-researched phrasing, see docs/DEV_NOTES.md "Vocabulary sources")
+         "stops responding", "stopped responding", "refuses to respond", "not responding to touch",
+         "dead zone", "dead spot", "not registering", "won't register", "wont register",
+         "doesn't register", "doesnt register", "touch not working", "touch stopped working",
+         "touch doesn't work", "touch isn't working", "touch is not working"],
         "touchscreen",
         "does not respond to touch input at all",
         "won't respond no matter how I tap it",
@@ -172,7 +203,8 @@ SYMPTOM_TAXONOMY: List[Symptom] = [
         "touch_lag",
         "Touch input delayed / laggy",
         ["touch", "tap", "input"],
-        ["delayed", "laggy", "lag", "noticeable delay", "slow to respond"],
+        ["delayed", "laggy", "lag", "noticeable delay", "slow to respond", "delay", "lagging",
+         "sluggish", "takes a second to respond", "slow response"],
         "touch input",
         "exhibits a noticeable delay before responding",
         "feels laggy, there's a delay when I tap stuff",
@@ -220,7 +252,10 @@ SYMPTOM_TAXONOMY: List[Symptom] = [
         "Half of the display is dark/unresponsive",
         ["screen", "display", "half", "side"],
         ["half black", "one side", "half dark", "half is completely dark",
-         "half completely dark", "half is dead"],
+         "half completely dark", "half is dead",
+         # (web-researched phrasing, see docs/DEV_NOTES.md "Vocabulary sources")
+         "half the screen", "half of the screen", "half of my screen", "half the display",
+         "half of the display", "other half", "half went black", "half is black"],
         "screen",
         "shows one half completely dark while the other half functions normally",
         "half is dead, other half's fine",
@@ -244,28 +279,31 @@ SYMPTOM_TAXONOMY: List[Symptom] = [
         ["completely blank", "goes blank", "blank", "black screen", "completely black",
          "totally black", "went black", "stays dark", "won't turn on", "wont turn on",
          "no image", "doesn't display anything", "doesnt display anything", "dark screen",
-         "black", "white and no text", "is dead", "screen dead", "dead screen"],
+         "black", "white and no text", "is dead", "screen dead", "dead screen",
+         # added after the rebranded paraphrase eval (scripts/eval_paraphrase_hits.py)
+         # missed "stuck on a blue screen" and "screen just dark, nothing visible"
+         "blue screen", "just dark", "is dark", "went dark", "screen dark",
+         "nothing visible", "nothing is visible", "won't boot", "wont boot",
+         # (web-researched phrasing, see docs/DEV_NOTES.md "Vocabulary sources")
+         "black screen of death", "stays black", "won't come on", "wont come on", "no display",
+         "still vibrates", "still rings", "can hear notifications", "won't wake", "wont wake",
+         "screen is off and"],
         "screen",
         "displays no image at all and will not turn on",
         "is just totally black, nothing shows up",
         "black no display",
     ),
     Symptom(
-        "screen_cracked",
-        "Screen physically cracked/damaged",
-        ["screen", "display"],
-        ["crack", "cracked", "shattered", "shatter"],
-        "screen",
-        "has a physical crack across it",
-        "is cracked and busted up",
-        "cracked physical damage",
-    ),
-    Symptom(
         "distorted_display",
         "Display output visually distorted / discolored",
         ["screen", "display"],
         ["distorted", "warped", "glitch", "green tint", "color tint", "discolor", "weird tint",
-         "weird color", "tint across"],
+         "weird color", "tint across",
+         # (web-researched phrasing, see docs/DEV_NOTES.md "Vocabulary sources")
+         "green line", "pink line", "purple line", "white line", "lines on", "lines across",
+         "vertical line", "horizontal line", "stripes", "color banding", "colors are off",
+         "colours are off", "green screen", "pink screen", "burn-in", "burn in", "ghost image",
+         "dead pixel", "pixelated"],
         "screen",
         "renders visual output that appears distorted or shows an abnormal color tint",
         "looks all warped and messed up, weird colors and everything",
@@ -814,11 +852,16 @@ def normalize_query(raw_complaint: str, llm_client: Optional[LLMClient] = None) 
 
     if symptom.category == _DEFAULT_SYMPTOM.category:
         client = llm_client or get_llm_client()
-        if not isinstance(client, MockLLMClient):
+        if True:
             # One call for both classification and paraphrases (see
             # _llm_classify_and_paraphrase) — generate_variations() reuses
             # the paraphrases instead of making a second round-trip.
             llm_category, prefetched = _llm_classify_and_paraphrase(cleaned, client)
+            if isinstance(client, MockLLMClient):
+                # The mock classifies demo categories but has no real
+                # paraphrases; don't let its empty list block a real client
+                # passed to generate_variations() later.
+                prefetched = None
             if llm_category is not None:
                 matched = next((s for s in SYMPTOM_TAXONOMY if s.category == llm_category), None)
                 if matched is not None:
@@ -934,7 +977,7 @@ def generate_variations(
     base = _template_variations(result)
 
     client = llm_client or get_llm_client()
-    if result.classification_source != "keyword_match" and not isinstance(client, MockLLMClient):
+    if result.classification_source != "keyword_match":
         if result.llm_variations_prefetched is not None:
             extra = result.llm_variations_prefetched  # already fetched in normalize_query's single call
         else:

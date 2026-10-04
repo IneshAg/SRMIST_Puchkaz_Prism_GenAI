@@ -1,170 +1,206 @@
 {
-  "warmed_entries": 14,
-  "scored": 20,
-  "hits": 20,
+  "warmed_entries": 16,
+  "scored": 19,
+  "hits": 19,
   "hit_rate": 1.0,
-  "hit_latency_p50_ms": 2.26,
-  "hit_latency_p95_ms": 2.7,
+  "hit_latency_p50_ms": 2.21,
+  "hit_latency_p95_ms": 2.5,
   "detail": [
     {
-      "query": "galaxy s22 screen goes white/blank when i open apps",
+      "query": "My Nexa X1 display goes white and blank whenever I open certain apps.",
       "source_row": 1,
       "scored": true,
       "hit": true,
+      "device": "Nexa X1",
+      "symptom": "screen_blank_black",
+      "similarity": 1.0000000000000007,
+      "latency_ms": 2.48
+    },
+    {
+      "query": "nexa x1 screen blank no text showing in apps",
+      "source_row": 1,
+      "scored": true,
+      "hit": true,
+      "device": "Nexa X1",
+      "symptom": "screen_blank_black",
+      "similarity": 1.0000000000000007,
+      "latency_ms": 2.1
+    },
+    {
+      "query": "Nexa Fold X1 screen is totally black and I can't transfer my data off it",
+      "source_row": 2,
+      "scored": true,
+      "hit": true,
+      "device": "Nexa Fold X1",
+      "symptom": "screen_blank_black",
       "similarity": 1.0000000000000004,
-      "latency_ms": 2.7
+      "latency_ms": 2.73
     },
     {
-      "query": "My S22's display is completely black, nothing shows",
-      "source_row": 1,
-      "scored": true,
-      "hit": true,
-      "similarity": 0.9442126759387349,
-      "latency_ms": 2.62
-    },
-    {
-      "query": "Z Flip 7 screen went black, can't transfer my data",
+      "query": "fold x1 black screen cant use data transfer!!",
       "source_row": 2,
       "scored": true,
       "hit": true,
-      "similarity": 0.9817562303212317,
-      "latency_ms": 2.42
+      "device": "Fold X1",
+      "symptom": "screen_blank_black",
+      "similarity": 0.9876232197059137,
+      "latency_ms": 2.0
     },
     {
-      "query": "galaxy z flip7 display dead black cant use smart switch",
-      "source_row": 2,
-      "scored": true,
-      "hit": true,
-      "similarity": 0.990444394619691,
-      "latency_ms": 2.28
-    },
-    {
-      "query": "Samsung Galaxy A16 screen went black by itself, won't display anything",
+      "query": "Nexa A15 screen went black by itself after a month, shows nothing",
       "source_row": 3,
       "scored": true,
       "hit": true,
-      "similarity": 0.953355883961184,
-      "latency_ms": 2.23
+      "device": "Nexa A15",
+      "symptom": "screen_blank_black",
+      "similarity": 0.9500510622401336,
+      "latency_ms": 2.38
     },
     {
-      "query": "My Galaxy Flip 7 inner screen stopped working",
+      "query": "The inner display on my Nexa Fold X1 has stopped working, cover screen is fine.",
       "source_row": 7,
       "scored": true,
       "hit": true,
-      "similarity": 1.0000000000000009,
-      "latency_ms": 2.47
+      "device": "Nexa Fold X1",
+      "symptom": "inner_screen_failure",
+      "similarity": 1.0000000000000004,
+      "latency_ms": 2.5
     },
     {
-      "query": "the folding screen on my flip 7 is dead",
+      "query": "nexa fold x1 inner screen dead, outer one works",
       "source_row": 7,
       "scored": true,
       "hit": true,
-      "similarity": 0.9634524530960215,
-      "latency_ms": 2.52
+      "device": "Nexa Fold X1",
+      "symptom": "inner_screen_failure",
+      "similarity": 1.0000000000000004,
+      "latency_ms": 2.27
     },
     {
-      "query": "Galaxy Z Flip 6 screen flickers then goes blank when I open it",
+      "query": "My Nexa Fold X1 screen keeps flickering and then goes blank when I unfold it",
       "source_row": 8,
       "scored": true,
       "hit": true,
-      "similarity": 1.0000000000000007,
-      "latency_ms": 2.29
-    },
-    {
-      "query": "my flip 6 half the display is black, other half works",
-      "source_row": 9,
-      "scored": true,
-      "hit": true,
-      "similarity": 0.9442126759387349,
-      "latency_ms": 2.21
-    },
-    {
-      "query": "Galaxy S22 no activation message, screen stays blank after carrier switch",
-      "source_row": 11,
-      "scored": true,
-      "hit": true,
-      "similarity": 1.0000000000000004,
-      "latency_ms": 2.24
-    },
-    {
-      "query": "my phone's screen is cracked and bleeding",
-      "source_row": 12,
-      "scored": true,
-      "hit": true,
-      "similarity": 1.0000000000000007,
-      "latency_ms": 2.05
-    },
-    {
-      "query": "galaxy s26 ultra shows a blue or black screen and won't boot",
-      "source_row": 13,
-      "scored": true,
-      "hit": true,
+      "device": "Nexa Fold X1",
+      "symptom": "screen_flicker_then_blank",
       "similarity": 1.0000000000000007,
       "latency_ms": 2.41
     },
     {
-      "query": "S Ultra screen flashes super fast when charging",
+      "query": "half of my nexa fold x1 screen is black, other half works",
+      "source_row": 9,
+      "scored": true,
+      "hit": true,
+      "device": "Nexa Fold X1",
+      "symptom": "half_screen_dark",
+      "similarity": 1.0000000000000007,
+      "latency_ms": 2.19
+    },
+    {
+      "query": "How do I get rid of the floating circle shortcut on my Nexa X1 screen?",
+      "source_row": 10,
+      "scored": false,
+      "reason": "source row has no answer in results.jsonl (no_match)"
+    },
+    {
+      "query": "Nexa X1 screen stays blank after the carrier deactivated my old phone, no activation msg",
+      "source_row": 11,
+      "scored": true,
+      "hit": true,
+      "device": "Nexa X1",
+      "symptom": "screen_blank_black",
+      "similarity": 1.0000000000000007,
+      "latency_ms": 2.42
+    },
+    {
+      "query": "my phone screen is completly cracked and unusable",
+      "source_row": 12,
+      "scored": true,
+      "hit": true,
+      "device": "TechCorp device",
+      "symptom": "screen_cracked",
+      "similarity": 1.0000000000000009,
+      "latency_ms": 2.15
+    },
+    {
+      "query": "Nexa X1 Ultra stuck on a blue screen with tiny text and won't boot",
+      "source_row": 13,
+      "scored": true,
+      "hit": true,
+      "device": "Nexa X1 Ultra",
+      "symptom": "screen_blank_black",
+      "similarity": 1.0000000000000004,
+      "latency_ms": 2.5
+    },
+    {
+      "query": "TechCorp X1 Ultra display flickers really fast every time I plug in the charger",
       "source_row": 14,
       "scored": true,
       "hit": true,
-      "similarity": 0.9773534285175184,
-      "latency_ms": 2.92
+      "device": "TechCorp X1 Ultra",
+      "symptom": "screen_flicker_then_blank",
+      "similarity": 1.0000000000000004,
+      "latency_ms": 2.35
     },
     {
-      "query": "My Galaxy S24 screen stays dark and blank",
+      "query": "nexa x1 screen just dark, nothing visible, can't transfer data",
       "source_row": 15,
       "scored": true,
       "hit": true,
-      "similarity": 1.0000000000000009,
-      "latency_ms": 2.16
-    },
-    {
-      "query": "Galaxy Z Flip 7 screen cracked at the fold",
-      "source_row": 16,
-      "scored": true,
-      "hit": true,
-      "similarity": 1.0000000000000016,
+      "device": "Nexa X1",
+      "symptom": "screen_blank_black",
+      "similarity": 1.0000000000000007,
       "latency_ms": 2.03
     },
     {
-      "query": "Galaxy S22 touch is laggy and delayed",
+      "query": "Nexa Fold X1 screen cracked at the fold and touch not working in places",
+      "source_row": 16,
+      "scored": true,
+      "hit": true,
+      "device": "Nexa Fold X1",
+      "symptom": "screen_cracked",
+      "similarity": 1.0000000000000004,
+      "latency_ms": 2.05
+    },
+    {
+      "query": "Nexa X1 touch input is laggy and delayed",
       "source_row": 18,
       "scored": true,
       "hit": true,
+      "device": "Nexa X1",
+      "symptom": "touch_lag",
       "similarity": 1.0000000000000004,
-      "latency_ms": 1.88
+      "latency_ms": 1.87
     },
     {
-      "query": "touchscreen lag on galaxy s22 when typing",
+      "query": "ugh my nexa x1 touchscreen lags every time i tap something",
       "source_row": 18,
       "scored": true,
       "hit": true,
+      "device": "Nexa X1",
+      "symptom": "touch_lag",
       "similarity": 1.0000000000000004,
-      "latency_ms": 1.82
+      "latency_ms": 1.84
     },
     {
-      "query": "galaxy s24 ultra black screen of death but it still rings",
+      "query": "Nexa X1 Ultra screen is black but the phone still rings and works",
       "source_row": 19,
       "scored": true,
       "hit": true,
-      "similarity": 1.0000000000000002,
-      "latency_ms": 1.92
+      "device": "Nexa X1 Ultra",
+      "symptom": "screen_blank_black",
+      "similarity": 1.0000000000000004,
+      "latency_ms": 2.21
     },
     {
-      "query": "My Galaxy S24 Ultra display is black though the phone is on",
+      "query": "x1 ultra black screen of death even though it powers on",
       "source_row": 19,
       "scored": true,
       "hit": true,
-      "similarity": 1.0000000000000002,
-      "latency_ms": 2.3
-    },
-    {
-      "query": "phone screen black wont turn on",
-      "source_row": 1,
-      "scored": true,
-      "hit": true,
-      "similarity": 0.9442126759387349,
-      "latency_ms": 1.83
+      "device": "TechCorp device",
+      "symptom": "screen_blank_black",
+      "similarity": 1.0000000000000013,
+      "latency_ms": 2.06
     }
   ]
 }

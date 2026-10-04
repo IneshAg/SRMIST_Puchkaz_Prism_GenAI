@@ -6,6 +6,8 @@ import pytest
 
 # api.py pre-warms its cache from results.jsonl at import; tests need a cold cache.
 os.environ.setdefault("CACHE_WARM_FILE", "")
+# ...and must never forward to the hosted deployment (hybrid mode).
+os.environ["REMOTE_API_URL"] = ""
 
 SRC = Path(__file__).resolve().parent.parent / "src"
 if str(SRC) not in sys.path:
@@ -16,7 +18,7 @@ if str(SRC) not in sys.path:
 def _isolate_from_real_llm_config(monkeypatch):
     """The test suite must stay fast and deterministic regardless of what a
     developer's local .env happens to have configured. Without this, a real
-    LLM_PROVIDER=gemini/openai/anthropic in .env leaks into every test that
+    LLM_PROVIDER=gemini/openai in .env leaks into every test that
     doesn't explicitly inject a fake llm_client (most of them call
     get_llm_client() internally by default) — each one then attempts a real
     network call, and with a provider blocked on this network that's an
@@ -28,6 +30,5 @@ def _isolate_from_real_llm_config(monkeypatch):
     monkeypatch.delenv("LLM_PROVIDER", raising=False)
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     import llm_client
     llm_client._client_cache.clear()  # don't let an earlier test's cached client leak in

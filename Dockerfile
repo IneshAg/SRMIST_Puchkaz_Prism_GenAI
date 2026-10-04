@@ -30,9 +30,12 @@ RUN python scripts/build_corpus_vectorizer.py
 # Expose default HTTP port
 EXPOSE 8000
 
-# Health check against /health endpoint
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+# Hosts like Render inject $PORT; default to 8000 for local `docker run`.
+ENV PORT=8000
 
-# Start uvicorn with api:app imported from src/
-CMD ["uvicorn", "api:app", "--app-dir", "src", "--host", "0.0.0.0", "--port", "8000"]
+# Health check against /health endpoint
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD curl -f "http://localhost:${PORT}/health" || exit 1
+
+# Start uvicorn with api:app imported from src/ (shell form so $PORT expands)
+CMD uvicorn api:app --app-dir src --host 0.0.0.0 --port "${PORT}"

@@ -4,7 +4,7 @@ Pluggable LLM client for Stage 0 (query enrichment).
 No provider/API key had been chosen yet when this was built, so this
 module ships:
   * a common `LLMClient` interface
-  * ready adapters for Gemini, OpenAI and Anthropic (each ~10 lines,
+  * ready adapters for Gemini, OpenAI and  (each ~10 lines,
     activate by setting env vars — see below)
   * a dependency-free `MockLLMClient` fallback that uses templated
     paraphrasing rules instead of an API call, so the pipeline always
@@ -12,8 +12,8 @@ module ships:
     never blocks the rest of the team on an API key)
 
 Configure via environment variables:
-    LLM_PROVIDER = "gemini" | "openai" | "anthropic" | "mock"   (default: mock)
-    GOOGLE_API_KEY / OPENAI_API_KEY / ANTHROPIC_API_KEY as needed
+    LLM_PROVIDER = "gemini" | "openai" | "" | "mock"   (default: mock)
+    GOOGLE_API_KEY / OPENAI_API_KEY as needed
     LLM_MODEL   (optional override of the default model per provider)
 
 Easiest way to set these: copy .env.example (project root) to .env and fill
@@ -178,12 +178,12 @@ class MockLLMClient(LLMClient):
             return json.dumps(mock_response)
 
         if "screen lag" in user_prompt.lower():
-            return "touch_lag"
+            return '{"category": "touch_lag", "variations": []}'
         elif "display" in user_prompt.lower() or "shattered" in user_prompt.lower():
-            return "display_issue"
+            return '{"category": "display_issue", "variations": []}'
         elif "back up" in user_prompt.lower() or "backup" in user_prompt.lower():
-            return "cloud_sync"
-        return user_prompt
+            return '{"category": "cloud_sync", "variations": []}'
+        return '{"category": "unclassified_issue", "variations": []}' 
 
 
 # Every network call below gets an explicit, short timeout. Found by testing,
@@ -292,41 +292,6 @@ class OpenAILLMClient(LLMClient):
         return self._model
 
 
-class AnthropicLLMClient(LLMClient):
-    def __init__(self, model: str | None = None):
-        import anthropic  # lazy import
-
-        self._client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"], timeout=_LLM_TIMEOUT_SECONDS)
-        self._model = model or os.environ.get("LLM_MODEL", "claude-haiku-4-5")
-
-    # claude-haiku-4-5 pricing (per token, USD, as of 2025)
-    # Free tier / no billing: token counts still returned; rates activate on paid tier automatically.
-    _RATE_IN  = 0.80 / 1_000_000   # $0.80 per 1M input tokens
-    _RATE_OUT = 4.00 / 1_000_000   # $4.00 per 1M output tokens
-
-    def complete(self, system_prompt: str, user_prompt: str) -> str:
-        resp = self._client.messages.create(
-            model=self._model,
-            max_tokens=4096,  # Stage 1 plans are long JSON; 1024 truncated them mid-object
-            temperature=_LLM_TEMPERATURE,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_prompt}],
-        )
-        try:
-            self._record_usage(
-                resp.usage.input_tokens or 0,
-                resp.usage.output_tokens or 0,
-                self._RATE_IN, self._RATE_OUT,
-            )
-        except Exception:
-            pass
-        return "".join(block.text for block in resp.content if hasattr(block, "text"))
-
-    @property
-    def model_name(self) -> str:
-        return self._model
-
-
 class _TimeoutGuardedClient(LLMClient):
     """Wraps a real provider client and enforces a hard wall-clock timeout
     around complete() from the OUTSIDE, independent of whatever timeout
@@ -388,8 +353,8 @@ class _TimeoutGuardedClient(LLMClient):
         """The inner provider client is the one whose complete() calls
         _record_usage(), so its counter is where the real token cost lands.
         Without this override the wrapper drained its OWN (always-zero)
-        counter and meta.cost_usd was 0.0 for every real Gemini/OpenAI/
-        Anthropic request.
+        counter and meta.cost_usd was 0.0 for every real Gemini/OpenAI
+         request.
         """
         return super().consume_cost() + self._inner.consume_cost()
 
@@ -422,8 +387,8 @@ def get_llm_client() -> LLMClient:
             client = _TimeoutGuardedClient(GeminiLLMClient())
         elif provider == "openai":
             client = _TimeoutGuardedClient(OpenAILLMClient())
-        elif provider == "anthropic":
-            client = _TimeoutGuardedClient(AnthropicLLMClient())
+        elif provider == "":
+            client = _TimeoutGuardedClient(LLMClient())
         else:
             client = MockLLMClient()
     except Exception as exc:
