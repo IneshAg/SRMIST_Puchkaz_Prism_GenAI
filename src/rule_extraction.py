@@ -30,6 +30,14 @@ _IMPERATIVE = {
     "wait", "make", "ensure", "shine", "examine", "let", "leave", "keep", "set", "change",
     "clear", "delete", "drag", "launch", "close", "find", "touch", "reinsert", "allow",
     "avoid", "bring", "take", "switch", "toggle", "follow", "power", "eject", "attach",
+    "force", "reconnect", "replace", "repeat", "restore", "free", "move", "back up",
+}
+# verbs that read naturally as "It will <verb> ..." in a description
+_DESC_VERBS = {
+    "check", "force", "charge", "attempt", "restart", "reset", "clean", "remove", "update",
+    "schedule", "visit", "enable", "disable", "adjust", "turn", "inspect", "try", "clear",
+    "connect", "replace", "contact", "install", "uninstall", "boot", "use",
+    "verify", "review", "open", "perform", "customize", "create", "exit", "access", "test",
 }
 _LEADING_FILLER = re.compile(
     r"^(?:first|next|now|then|finally|also|alternatively|additionally|afterwards?)[,:]?\s+|"
@@ -85,16 +93,24 @@ def _split_chain(sentence: str) -> List[str]:
     return [sentence]
 
 
+_LEAD_CLAUSE = re.compile(
+    r"^(?:(?:to|if|when|once|after|before|while)\b[^,]{0,80},|for\b[^:]{0,60}:)\s*(?:please\s+)?",
+    re.IGNORECASE,
+)
+
+
 def _steps_from(body: str) -> List[str]:
     steps: List[str] = []
     for raw in re.split(r"(?<=[.!?])\s+|\n+", body):
         s = _clean_sentence(raw)
-        # "To do this, go to Settings, ..." -- the instruction starts mid-sentence
-        m = re.search(r"\b(?:go to|open|tap|press and hold)\b.*", s, re.IGNORECASE)
-        if not _is_instruction(s) and m and m.start() > 0 and ", " in s[: m.start() + 2]:
-            s = _clean_sentence(m.group(0))
+        # "To restart, swipe down ..." / "If damaged, please visit ..." -- drop
+        # the lead-in clause so the instruction itself is the step
+        if s and not _is_instruction(s):
+            s = _clean_sentence(_LEAD_CLAUSE.sub("", s))
         if not s or not _is_instruction(s):
             continue
+        if s.rstrip(".").endswith(":") or re.search(r"\bfollowing steps\b", s, re.IGNORECASE):
+            continue  # "Try the following steps:" introduces steps, it isn't one
         for step in _split_chain(s):
             if step not in steps:
                 steps.append(step)
@@ -106,22 +122,44 @@ def _action_name(heading: str) -> str:
     return name[:60]
 
 
+_SMALL = {"the", "a", "an", "your", "and", "or", "of", "to", "for", "on", "in", "with"}
+
+
 def _description(name: str) -> str:
-    words = re.findall(r"[A-Za-z0-9'-]+", name.lower())
-    words = [w for w in words if w not in {"the", "a", "an", "your", "device's"}][:4]
-    desc = ["It", "will", "help"] + words
+    """5-7 words starting "It will": "Force a Restart" -> "It will force a
+    restart."; noun headings -> "It will help with safe mode."."""
+    words = re.findall(r"[A-Za-z0-9'/-]+", name)
+    lw = [w.lower() for w in words]
+    if lw and lw[0] in _DESC_VERBS:
+        body = lw[:5]
+    else:
+        body = ["help", "with"] + [w for w in lw if w not in _SMALL][:3]
+    while body and body[-1] in _SMALL:
+        body.pop()
+    desc = ["It", "will"] + body
     while len(desc) < 5:
-        desc.append("now")
+        desc.append("properly" if len(desc) == 4 else "now")
     return " ".join(desc[:7]) + "."
 
 
 def _topic(title: str) -> str:
-    t = re.sub(r"\s+on\s+(?:a|your)\s+.*$", "", title.strip(), flags=re.IGNORECASE)
+    # "Screen flickers when using the Camera on a smartphone" -> "Screen flickers"
+    t = re.sub(r"\s+(?:on|when|while|with|after|if|for)\s+.*$", "", title.strip(), flags=re.IGNORECASE)
     t = re.sub(r"[^A-Za-z0-9 ]", " ", t)
     return " ".join(t.split()[:4]) or "Device"
 
 
-def rule_based_extraction(siis_response: dict) -> Optional[dict]:
+def _title(category: Optional[str], topic: str) -> str:
+    """2-3 word sentence-case title. Prefer the Stage 0 symptom category
+    ("inner_screen_failure" -> "Inner screen failure"), else the article topic."""
+    words = [w for w in (category or "").split("_") if w and w not in {"then", "issue", "unclassified"}]
+    if category and category != "unclassified_issue" and len(words) >= 2:
+        return " ".join(words[:3]).capitalize()
+    tw = [w for w in topic.split() if w.lower() not in _SMALL][:3]
+    return " ".join(tw) if len(tw) >= 2 else topic
+
+
+def rule_based_extraction(siis_response: dict, category: Optional[str] = None) -> Optional[dict]:
     """Raw dict in the Stage 1 LLM output shape, or None if the article has
     no extractable instructions."""
     title = str(siis_response.get("title", "")).strip()
@@ -138,7 +176,10 @@ def rule_based_extraction(siis_response: dict) -> Optional[dict]:
             "actionName": name,
             "description": _description(name),
             "stepGroups": [{"steps": steps}],
-            "category": "auto" if any(re.search(r"\bsettings\b", s, re.I) for s in steps) else "manual",
+            # on-screen navigation = a settings screen (Stage 2 re-labels
+            # restart / reset / safe mode as critical and maps the deeplink)
+            "category": "auto" if any(re.match(r"(?:tap|go to|navigate|open settings|select)\b", s, re.I)
+                                      for s in steps) else "manual",
         })
         if len(actions) >= MAX_ACTIONS:
             break
@@ -149,9 +190,11 @@ def rule_based_extraction(siis_response: dict) -> Optional[dict]:
         actions = [{"actionName": _topic(title), "description": _description(_topic(title)),
                     "stepGroups": [{"steps": steps}], "category": "manual"}]
     topic = _topic(title)
+    topic_tc = " ".join(w if (i and w.lower() in _SMALL) else w[:1].upper() + w[1:].lower()
+                        for i, w in enumerate(topic.split()))
     return {"contexts": [{
-        "goal": f"Follow these steps to perform this {topic.title()} Troubleshooting",
-        "title": topic,
+        "goal": f"Follow these steps to perform this {topic_tc} Troubleshooting",
+        "title": _title(category, topic),
         "score": 0.6,  # rule-based: lower confidence than an LLM extraction
         "actions": actions,
     }]}

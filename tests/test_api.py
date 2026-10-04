@@ -180,7 +180,9 @@ def test_troubleshoot_integration_sample_from_input_with_matching_siis_record(cl
                 assert len(group.steps) > 0
                 if action.category == actionCategory.auto:
                     assert group.actionableDeeplink is not None
-                    assert group.actionableDeeplink.deeplink == "bixby://dummy_positive"
+                    # verbatim from the catalog: a real match or its generic placeholder
+                    catalog = {d["deeplink"] for d in json.load(open(data_dir / "deeplinks.json", encoding="utf-8"))["deeplinks"]}
+                    assert group.actionableDeeplink.deeplink in catalog
                 else:
                     assert group.actionableDeeplink is None
 
@@ -322,4 +324,39 @@ def test_troubleshoot_cache_hit_returns_under_300ms(client):
     finally:
         api.pipeline = original_pipeline
 
+def test_oversized_query_is_rejected_with_422(client):
+    r = client.post("/v1/troubleshoot", json={"query": "screen black " * 1000})
+    assert r.status_code == 422
+    r = client.post("/v1/enrich", json={"query": "x" * 5000})
+    assert r.status_code == 422
+
+
+def test_oversized_siis_text_is_rejected_with_422(client):
+    q = "Galaxy S22 screen is black"
+    r = client.post("/v1/troubleshoot", json={"query": q, "siis_response": "a" * 25000})
+    assert r.status_code == 422
+    r = client.post("/v1/troubleshoot", json={"query": q, "siis_response": {"title": "t", "content": "a" * 25000}})
+    assert r.status_code == 422
+
+
+def test_normal_sized_input_is_still_accepted(client):
+    r = client.post(
+        "/v1/troubleshoot",
+        json={"query": "Galaxy S22 screen is black", "siis_response": {"title": "t", "content": "a" * 5000}},
+    )
+    assert r.status_code == 200
+
+
+def test_rate_limit_returns_429_with_retry_after(client, monkeypatch):
+    monkeypatch.setenv("RATE_LIMIT_PER_MINUTE", "3")
+    api._rate_limiter.reset()
+    try:
+        codes = [client.post("/v1/enrich", json={"query": "Galaxy S22 screen is black"}).status_code for _ in range(5)]
+        assert codes[:3] == [200, 200, 200]
+        assert codes[3:] == [429, 429]
+        r = client.post("/v1/enrich", json={"query": "x"})
+        assert r.status_code == 429 and int(r.headers["Retry-After"]) >= 1
+        assert client.get("/health").status_code == 200  # health is never limited
+    finally:
+        api._rate_limiter.reset()
 

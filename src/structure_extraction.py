@@ -678,6 +678,21 @@ def structure_extraction(
 # Continue to LLM only when relevant
 # -----------------------------------------
     client = llm_client or get_llm_client()
+
+    # Offline (no key, hosted service unreachable): build the plan from the
+    # article's own headings and instruction sentences instead of asking the
+    # mock "LLM", which could only echo the first two lines of the article.
+    from llm_client import MockLLMClient
+    if isinstance(client, MockLLMClient):
+        from rule_extraction import rule_based_extraction
+        raw = rule_based_extraction(siis_response, category=enrichment.symptom_category)
+        if raw is None:
+            return ContextDeeplinkResponse(contexts=[])
+        try:
+            return _validate_structure(raw, source_text)
+        except Exception as exc:
+            print(f"[Stage 1] offline extraction failed validation: {type(exc).__name__}: {exc}")
+            return ContextDeeplinkResponse(contexts=[])
     # -----------------------------------------
     # 3. Build the user prompt
     # -----------------------------------------
