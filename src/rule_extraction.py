@@ -107,6 +107,13 @@ def _steps_from(body: str) -> List[str]:
         # the lead-in clause so the instruction itself is the step
         if s and not _is_instruction(s):
             s = _clean_sentence(_LEAD_CLAUSE.sub("", s))
+        if s and not _is_instruction(s):
+            # "For fast repairs you can trust, visit a local service center."
+            m = re.search(r",\s*(?:please\s+)?([A-Za-z]+)\b", s)
+            while m and m.group(1).lower() not in _IMPERATIVE:
+                m = re.compile(r",\s*(?:please\s+)?([A-Za-z]+)\b").search(s, m.end())
+            if m:
+                s = _clean_sentence(s[m.start(1):])
         if not s or not _is_instruction(s):
             continue
         if s.rstrip(".").endswith(":") or re.search(r"\bfollowing steps\b", s, re.IGNORECASE):
